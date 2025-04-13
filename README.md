@@ -27,7 +27,7 @@
 
 1. Clone repository:
 ```bash
-git clone https://github.com/your-username/bitrix24-contact-manager.git
+git clone https://github.com/Xhuynh16/Bitrix24-contact-manager-AASC_BAI2.git
 cd bitrix24-contact-manager
 ```
 
