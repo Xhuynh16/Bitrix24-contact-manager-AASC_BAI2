@@ -1,0 +1,84 @@
+.navbar {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.table th {
+    background-color: #0d6efd;
+    color: white;
+}
+
+.btn-action {
+    padding: 0.25rem 0.5rem;
+    margin: 0 0.25rem;
+}
+
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.table-responsive {
+    margin-bottom: 2rem;
+}
+
+.form-label {
+    font-weight: 500;
+}
+
+.modal-content {
+    border-radius: 0.5rem;
+}
+
+.modal-header {
+    background-color: #f8f9fa;
+    border-radius: 0.5rem 0.5rem 0 0;
+}
+
+.btn-close:focus {
+    box-shadow: none;
+}
+
+#searchInput {
+    border-radius: 2rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+
+.table td {
+    vertical-align: middle;
+}
+
+.badge {
+    font-size: 0.875rem;
+    padding: 0.5em 0.75em;
+}
+
+.contact-name {
+    font-weight: 500;
+    color: #0d6efd;
+}
+
+.contact-info {
+    font-size: 0.875rem;
+    color: #6c757d;
+}
+
+.bank-info {
+    font-size: 0.875rem;
+    background-color: #f8f9fa;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+}
+
+.address-info {
+    font-size: 0.875rem;
+    color: #495057;
+} 

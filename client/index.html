@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản Lý Liên Hệ</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="css/style.css" rel="stylesheet">
+    <style>
+        input.form-control {
+            cursor: text !important;
+        }
+        input.form-control:focus {
+            caret-color: auto !important;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="#">Quản Lý Liên Hệ</a>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addContactModal">
+                <i class="fas fa-plus"></i> Thêm Liên Hệ
+            </button>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Search and Filter -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <input type="text" id="searchInput" class="form-control" placeholder="Tìm kiếm liên hệ...">
+            </div>
+        </div>
+
+        <!-- Contacts Table -->
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Họ và Tên</th>
+                        <th>Số Điện Thoại</th>
+                        <th>Email</th>
+                        <th>Địa Chỉ</th>
+                        <th>Thông Tin Ngân Hàng</th>
+                        <th>Thao Tác</th>
+                    </tr>
+                </thead>
+                <tbody id="contactsTableBody">
+                    <!-- Contacts will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div id="loadingSpinner" class="text-center d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Đang tải...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Contact Modal -->
+    <div class="modal fade" id="addContactModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Thêm Liên Hệ Mới</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="contactForm">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Họ</label>
+                                <input type="text" class="form-control" name="lastName" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Tên</label>
+                                <input type="text" class="form-control" name="name" required>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Số Điện Thoại</label>
+                                <input type="tel" class="form-control" name="phone" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-control" name="email" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Website</label>
+                            <input type="text" class="form-control" name="website">
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Phường/Xã</label>
+                                <input type="text" class="form-control" name="ward" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Quận/Huyện</label>
+                                <input type="text" class="form-control" name="district" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Tỉnh/Thành Phố</label>
+                                <input type="text" class="form-control" name="city" required>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Tên Ngân Hàng</label>
+                                <input type="text" class="form-control" name="bankName" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Số Tài Khoản</label>
+                                <input type="text" class="form-control" name="bankAccount" required>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" class="btn btn-primary" id="saveContact">Lưu Liên Hệ</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Contact Modal -->
+    <div class="modal fade" id="editContactModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Chỉnh Sửa Liên Hệ</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editContactForm">
+                        <input type="hidden" name="contactId">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Họ</label>
+                                <input type="text" class="form-control" name="lastName" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Tên</label>
+                                <input type="text" class="form-control" name="name" required>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Số Điện Thoại</label>
+                                <input type="tel" class="form-control" name="phone" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-control" name="email" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Website</label>
+                            <input type="text" class="form-control" name="website">
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Phường/Xã</label>
+                                <input type="text" class="form-control" name="ward" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Quận/Huyện</label>
+                                <input type="text" class="form-control" name="district" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Tỉnh/Thành Phố</label>
+                                <input type="text" class="form-control" name="city" required>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Tên Ngân Hàng</label>
+                                <input type="text" class="form-control" name="bankName" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Số Tài Khoản</label>
+                                <input type="text" class="form-control" name="bankAccount" required>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                    <button type="button" class="btn btn-primary" id="updateContact">Cập Nhật</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JS -->
+    <script src="js/script.js"></script>
+</body>
+</html> 
