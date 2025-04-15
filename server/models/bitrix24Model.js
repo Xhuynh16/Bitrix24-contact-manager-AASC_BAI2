@@ -1,38 +1,41 @@
-import fetch from 'node-fetch';
-import { BITRIX24_WEBHOOK } from '../config.js';
-import axios from 'axios';
+import { callBitrix24API as callOAuth } from '../services/bitrix24OauthService.js';
 
-const BITRIX_API_ENDPOINT = BITRIX24_WEBHOOK;
-
-const callBitrix24API = async (method, data) => {
-  const url = `${BITRIX24_WEBHOOK}${method}.json`;
+/**
+ * Call Bitrix24 API with the given method and data
+ * @param {string} method - API method to call
+ * @param {Object} data - Data to send with the request
+ * @param {string} domain - Bitrix24 domain
+ * @returns {Promise<any>} API response
+ */
+export const callBitrix24API = async (method, data, domain) => {
+  if (!method) {
+    throw new Error('Method is required');
+  }
+  
   try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    const result = await response.json();
-    
-    if (result.error) {
-      console.error(`Bitrix24 API Error (${method}):`, result.error);
-      throw new Error(result.error_description || result.error);
-    }
-    
-    return result.result;
+    return await callOAuth(method, data, domain);
   } catch (error) {
     console.error(`Error calling Bitrix24 API (${method}):`, error);
-    throw error;
+    
+    // Tạo lỗi với thông tin chi tiết hơn cho xử lý ở controller
+    const enhancedError = new Error(error.message);
+    enhancedError.originalError = error;
+    enhancedError.status = error.status || 500;
+    enhancedError.code = error.code || 'API_ERROR';
+    enhancedError.method = method;
+    throw enhancedError;
   }
 };
 
-
-const getCountryId = async (countryName) => {
+/**
+ * Get country ID for the given country name
+ * @param {string} countryName - Name of the country
+ * @returns {Promise<string>} Country ID
+ */
+export const getCountryId = async (countryName) => {
   try {
-    console.log('Fetching countries from Bitrix24...');
-    const countries = await callBitrix24API('crm.requisite.preset.countries', {});
-    console.log('Countries response:', JSON.stringify(countries, null, 2));
-
+    const countries = await callBitrix24API('crm.requisite.preset.countries', {}, 'crm');
+    
     if (typeof countries !== 'object' || countries === null) {
       throw new Error('Invalid response format from countries API');
     }
@@ -53,318 +56,213 @@ const getCountryId = async (countryName) => {
     return countryId;
   } catch (error) {
     console.error('Error getting country ID:', error);
-    console.log('Using default country ID');
-    return "VN"; 
+    return "VN"; // Default fallback
   }
 };
 
-
-const findSuitablePreset = async () => {
+/**
+ * Find suitable preset for requisites
+ * @returns {Promise<number>} Preset ID
+ */
+export const findSuitablePreset = async () => {
   try {
-    console.log('Fetching requisite presets...');
-    const presets = await callBitrix24API('crm.requisite.preset.list', {});
-    console.log('Available presets:', JSON.stringify(presets, null, 2));
-
+    const presets = await callBitrix24API('crm.requisite.preset.list', {}, 'crm');
+    
     for (const preset of presets) {
       const presetFields = await callBitrix24API('crm.requisite.preset.fields', {
         id: preset.ID
-      });
-      console.log(`Checking preset ${preset.ID} fields:`, JSON.stringify(presetFields, null, 2));
-
+      }, 'crm');
+      
       if (presetFields.RQ_BANK_NAME && presetFields.RQ_BANK_ACCOUNT) {
-        console.log(`Found suitable preset: ${preset.ID}`);
         return preset.ID;
       }
     }
 
-    console.warn('No suitable preset found, using default preset 1');
-    return 1;
+    return 1; // Default preset
   } catch (error) {
     console.error('Error finding suitable preset:', error);
-    console.warn('Falling back to default preset 1');
-    return 1;
+    return 1; // Default fallback
   }
 };
 
-export const createFullContact = async (data) => {
-  try {
-    const contactData = {
-      fields: {
-        NAME: data.name,
-        LAST_NAME: data.lastName,
-        PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }],
-        EMAIL: [{ VALUE: data.email, VALUE_TYPE: "WORK" }],
-        WEB: [{ VALUE: data.website, VALUE_TYPE: "WORK" }]
-      },
-      params: { REGISTER_SONET_EVENT: "Y" }
-    };
-    
-    console.log('Creating contact with data:', contactData);
-    const contactId = await callBitrix24API('crm.contact.add', contactData);
-    console.log('Contact created successfully with ID:', contactId);
-
-    const requisiteData = {
-      fields: {
-        ENTITY_TYPE_ID: 3, 
-        ENTITY_ID: contactId,
-        PRESET_ID: 1,
-        NAME: `${data.name} ${data.lastName} - Business Info`,
-        COUNTRY: 'VN'
-      }
-    };
-
-    console.log('Creating requisite with data:', requisiteData);
-    const requisiteId = await callBitrix24API('crm.requisite.add', requisiteData);
-    console.log('Requisite created successfully with ID:', requisiteId);
-
-    const addressData = {
-      fields: {
-        TYPE_ID: 1, 
-        ENTITY_TYPE_ID: 8, 
-        ENTITY_ID: requisiteId,
-        COUNTRY: 'VN',
-        PROVINCE: data.region,
-        CITY: data.city,
-        ADDRESS_1: data.address
-      }
-    };
-
-    console.log('Adding address with data:', addressData);
-    const addressId = await callBitrix24API('crm.address.add', addressData);
-    console.log('Address added successfully with ID:', addressId);
-
-    const bankDetailData = {
-      fields: {
-        ENTITY_TYPE_ID: 8, 
-        ENTITY_ID: requisiteId,
-        COUNTRY: 'VN',
-        NAME: `${data.bankName} - Primary Account`,
-        RQ_BANK_NAME: data.bankName,
-        RQ_ACC_NAME: data.name + ' ' + data.lastName,
-        RQ_ACC_NUM: data.bankAccount
-      }
-    };
-
-    console.log('Creating bank detail with data:', JSON.stringify(bankDetailData, null, 2));
-    const bankDetailId = await callBitrix24API('crm.requisite.bankdetail.add', bankDetailData);
-    console.log('Bank detail created successfully with ID:', bankDetailId);
-
-    return {
-      success: true,
-      message: 'Tạo liên hệ thành công',
-      data: {
-        contactId,
-        requisiteId,
-        addressId,
-        bankDetailId
-      }
-    };
-  } catch (error) {
-    console.error('Error in createFullContact:', error);
-    throw error;
+/**
+ * Cấu trúc dữ liệu cho Contact API
+ * @param {Object} data - Dữ liệu contact từ request
+ * @returns {Object} - Payload cho Bitrix24 API
+ */
+export const createContactPayload = (data) => {
+  const payload = {
+    fields: {
+      NAME: data.name,
+      LAST_NAME: data.lastName,
+      PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }],
+      EMAIL: [{ VALUE: data.email, VALUE_TYPE: "WORK" }]
+    },
+    params: { REGISTER_SONET_EVENT: "Y" }
+  };
+  
+  // Thêm website nếu có
+  if (data.website) {
+    payload.fields.WEB = [{ VALUE: data.website, VALUE_TYPE: "WORK" }];
   }
+  
+  return payload;
 };
 
-
-export const updateFullContact = async (contactId, data) => {
-  try {
-    try {
-      await callBitrix24API('crm.contact.get', { id: contactId });
-    } catch (error) {
-      throw new Error(`Không tìm thấy liên hệ với ID ${contactId}`);
+/**
+ * Cấu trúc dữ liệu cho Requisite API
+ * @param {string} contactId - ID của contact
+ * @param {Object} data - Dữ liệu contact từ request
+ * @returns {Object} - Payload cho Bitrix24 API
+ */
+export const createRequisitePayload = (contactId, data) => {
+  return {
+    fields: {
+      ENTITY_TYPE_ID: 3, 
+      ENTITY_ID: contactId,
+      PRESET_ID: 1,
+      NAME: `${data.name} ${data.lastName} - Business Info`,
+      COUNTRY: 'VN'
     }
+  };
+};
 
-    const contactData = {
-      id: contactId,
-      fields: {
-        NAME: data.name,
-        LAST_NAME: data.lastName,
-        PHONE: [{ VALUE: data.phone, VALUE_TYPE: "WORK" }],
-        EMAIL: [{ VALUE: data.email, VALUE_TYPE: "WORK" }],
-        WEB: [{ VALUE: data.website, VALUE_TYPE: "WORK" }]
-      },
-      params: { REGISTER_SONET_EVENT: "Y" }
-    };
-    
-    console.log('Updating contact with data:', contactData);
-    await callBitrix24API('crm.contact.update', contactData);
-    console.log('Contact updated successfully');
-
-    const requisites = await callBitrix24API('crm.requisite.list', {
-      filter: { ENTITY_ID: contactId, ENTITY_TYPE_ID: 3 }
-    });
-    
-    if (!requisites || requisites.length === 0) {
-      throw new Error(`Không tìm thấy requisite cho liên hệ ${contactId}. Vui lòng tạo mới liên hệ.`);
+/**
+ * Cấu trúc dữ liệu cho Address API
+ * @param {string} requisiteId - ID của requisite
+ * @param {Object} data - Dữ liệu address từ request
+ * @returns {Object} - Payload cho Bitrix24 API
+ */
+export const createAddressPayload = (requisiteId, data) => {
+  return {
+    fields: {
+      TYPE_ID: 1, 
+      ENTITY_TYPE_ID: 8, 
+      ENTITY_ID: requisiteId,
+      COUNTRY: 'VN',
+      PROVINCE: data.region,
+      CITY: data.city,
+      ADDRESS_1: data.address
     }
-    
-    const requisiteId = requisites[0].ID;
-    console.log('Found requisite ID:', requisiteId);
+  };
+};
 
-    const addresses = await callBitrix24API('crm.address.list', {
-      filter: { ENTITY_ID: requisiteId, ENTITY_TYPE_ID: 8 }
-    });
-
-    if (!addresses || addresses.length === 0) {
-      throw new Error(`Không tìm thấy địa chỉ cho requisite ${requisiteId}. Vui lòng tạo mới liên hệ.`);
+/**
+ * Cấu trúc dữ liệu cho Bank Detail API
+ * @param {string} requisiteId - ID của requisite
+ * @param {Object} data - Dữ liệu bank detail từ request
+ * @returns {Object} - Payload cho Bitrix24 API
+ */
+export const createBankDetailPayload = (requisiteId, data) => {
+  return {
+    fields: {
+      ENTITY_TYPE_ID: 8, 
+      ENTITY_ID: requisiteId,
+      COUNTRY: 'VN',
+      NAME: `${data.bankName} - Primary Account`,
+      RQ_BANK_NAME: data.bankName,
+      RQ_ACC_NAME: data.name + ' ' + data.lastName,
+      RQ_ACC_NUM: data.bankAccount
     }
+  };
+};
 
-    const addressData = {
-      fields: {
-        TYPE_ID: 1,
-        ENTITY_TYPE_ID: 8,
-        ENTITY_ID: requisiteId,
-        COUNTRY: 'Vietnam',
-        PROVINCE: data.region,
-        CITY: data.city,
-        ADDRESS_1: data.address
-      }
-    };
-
-    console.log('Updating address...');
-    await callBitrix24API('crm.address.update', addressData);
-    console.log('Address updated successfully');
-
-    const bankDetails = await callBitrix24API('crm.requisite.bankdetail.list', {
-      filter: { ENTITY_ID: requisiteId }
-    });
-
-    if (!bankDetails || bankDetails.length === 0) {
-      throw new Error(`Không tìm thấy thông tin ngân hàng cho requisite ${requisiteId}. Vui lòng tạo mới liên hệ.`);
+/**
+ * Cấu trúc dữ liệu cho Update Bank Detail API
+ * @param {string} bankDetailId - ID của bank detail
+ * @param {string} requisiteId - ID của requisite
+ * @param {Object} data - Dữ liệu bank detail từ request 
+ * @returns {Object} - Payload cho Bitrix24 API
+ */
+export const updateBankDetailPayload = (bankDetailId, requisiteId, data) => {
+  return {
+    id: bankDetailId,
+    fields: {
+      ENTITY_ID: requisiteId,
+      NAME: `${data.bankName} - Primary Account`,
+      RQ_BANK_NAME: data.bankName,
+      RQ_ACC_NAME: data.name + ' ' + data.lastName,
+      RQ_ACC_NUM: data.bankAccount
     }
+  };
+};
 
-    const bankDetailId = bankDetails[0].ID;
-    const bankDetailData = {
-      id: bankDetailId,
-      fields: {
-        ENTITY_ID: requisiteId,
-        NAME: `${data.bankName} - Primary Account`,
-        RQ_BANK_NAME: data.bankName,
-        RQ_ACC_NAME: data.name + ' ' + data.lastName,
-        RQ_ACC_NUM: data.bankAccount
-      }
-    };
+/**
+ * Cấu trúc dữ liệu đầu ra sau khi tạo contact
+ * @param {string} contactId - ID của contact
+ * @param {string} requisiteId - ID của requisite
+ * @param {string} addressId - ID của address
+ * @param {string} bankDetailId - ID của bank detail
+ * @returns {Object} - Cấu trúc dữ liệu trả về
+ */
+export const createContactResponse = (contactId, requisiteId, addressId, bankDetailId) => {
+  return {
+    success: true,
+    message: 'Tạo liên hệ thành công',
+    data: {
+      contactId,
+      requisiteId,
+      addressId,
+      bankDetailId
+    }
+  };
+};
 
-    console.log('Updating bank detail...');
-    await callBitrix24API('crm.requisite.bankdetail.update', bankDetailData);
-    console.log('Bank detail updated successfully');
-
-    return {
-      success: true,
-      message: 'Cập nhật liên hệ thành công',
+/**
+ * Cấu trúc dữ liệu đầu ra sau khi cập nhật contact
+ * @param {string} contactId - ID của contact
+ * @param {string} requisiteId - ID của requisite
+ * @param {string} bankDetailId - ID của bank detail
+ * @returns {Object} - Cấu trúc dữ liệu trả về
+ */
+export const updateContactResponse = (contactId, requisiteId, bankDetailId) => {
+  return {
+    success: true,
+    message: 'Cập nhật liên hệ thành công',
+    data: {
       contactId,
       requisiteId,
       bankDetailId
-    };
-  } catch (error) {
-    console.error('Error in updateFullContact:', error);
-    throw error;
-  }
+    }
+  };
 };
 
-export const deleteFullContact = async (contactId) => {
-  try {
-    try {
-      await callBitrix24API('crm.contact.get', { id: contactId });
-    } catch (error) {
-      throw new Error(`Contact with ID ${contactId} not found`);
+/**
+ * Cấu trúc dữ liệu đầu ra sau khi xóa contact
+ * @param {string} contactId - ID của contact
+ * @returns {Object} - Cấu trúc dữ liệu trả về
+ */
+export const deleteContactResponse = (contactId) => {
+  return {
+    success: true,
+    message: 'Contact deleted successfully',
+    data: {
+      contactId
     }
-    const requisites = await callBitrix24API('crm.requisite.list', {
-      filter: { ENTITY_ID: contactId, ENTITY_TYPE_ID: 3 }
-    });
+  };
+};
+
+/**
+ * Cấu trúc dữ liệu cho danh sách liên hệ
+ * @param {Object} contact - Dữ liệu contact từ API
+ * @param {Object|null} address - Dữ liệu address từ API
+ * @param {Array|null} bankDetails - Dữ liệu bank details từ API
+ * @returns {Object} - Cấu trúc contact đã làm giàu
+ */
+export const enhanceContactData = (contact, address, bankDetails) => {
+  return {
+    ...contact,
+    // Giữ lại các thuộc tính trường dạng rút gọn theo yêu cầu
+    address: address ? address.ADDRESS_1 : null,
+    city: address ? address.CITY : null,
+    region: address ? address.PROVINCE : null,
     
-    if (requisites && requisites.length > 0) {
-      const requisiteId = requisites[0].ID;
-      console.log('Found requisite ID:', requisiteId);
-
-      const bankDetails = await callBitrix24API('crm.requisite.bankdetail.list', {
-        filter: { ENTITY_ID: requisiteId }
-      });
-
-      if (bankDetails && bankDetails.length > 0) {
-        for (const bankDetail of bankDetails) {
-          console.log(`Deleting bank detail ID: ${bankDetail.ID}`);
-          await callBitrix24API('crm.requisite.bankdetail.delete', {
-            id: bankDetail.ID
-          });
-        }
-      }
-
-      const addresses = await callBitrix24API('crm.address.list', {
-        filter: { ENTITY_ID: requisiteId, ENTITY_TYPE_ID: 8 }
-      });
-
-      if (addresses && addresses.length > 0) {
-        for (const address of addresses) {
-          console.log(`Deleting address for requisite ${requisiteId}`);
-          await callBitrix24API('crm.address.delete', {
-            fields: {
-              TYPE_ID: address.TYPE_ID,
-              ENTITY_TYPE_ID: 8,
-              ENTITY_ID: requisiteId
-            }
-          });
-        }
-      }
-    }
-
-    console.log(`Deleting contact ID: ${contactId}`);
-    await callBitrix24API('crm.contact.delete', { ID: contactId });
-
-    return {
-      success: true,
-      message: 'Contact and all associated data deleted successfully'
-    };
-  } catch (error) {
-    console.error('Error in deleteFullContact:', error);
-    throw error;
-  }
+    // Dữ liệu đầy đủ cho ADDRESS như định dạng ban đầu để tương thích
+    ADDRESS: address || null,
+    
+    // Thông tin ngân hàng
+    bankDetails: bankDetails || [],
+    BANK_NAME: bankDetails && bankDetails.length > 0 ? bankDetails[0].RQ_BANK_NAME : null,
+    BANK_ACCOUNT: bankDetails && bankDetails.length > 0 ? bankDetails[0].RQ_ACC_NUM : null
+  };
 };
-
-export const getAllContacts = async () => {
-  try {
-    const contacts = await callBitrix24API('crm.contact.list', {
-      filter: {},
-      select: ['*', 'PHONE', 'EMAIL', 'WEB']
-    });
-
-    const contactsWithDetails = await Promise.all(contacts.map(async (contact) => {
-      try {
-        const requisites = await callBitrix24API('crm.requisite.list', {
-          filter: { ENTITY_ID: contact.ID, ENTITY_TYPE_ID: 3 }
-        });
-
-        if (requisites && requisites.length > 0) {
-          const requisiteId = requisites[0].ID;
-
-          const addresses = await callBitrix24API('crm.address.list', {
-            filter: { ENTITY_ID: requisiteId, ENTITY_TYPE_ID: 8 }
-          });
-
-          const bankDetails = await callBitrix24API('crm.requisite.bankdetail.list', {
-            filter: { ENTITY_ID: requisiteId }
-          });
-
-          return {
-            ...contact,
-            ADDRESS: addresses && addresses.length > 0 ? addresses[0] : null,
-            BANK_NAME: bankDetails && bankDetails.length > 0 ? bankDetails[0].RQ_BANK_NAME : null,
-            BANK_ACCOUNT: bankDetails && bankDetails.length > 0 ? bankDetails[0].RQ_ACC_NUM : null
-          };
-        }
-
-        return contact;
-      } catch (error) {
-        console.error(`Error fetching details for contact ${contact.ID}:`, error);
-        return contact;
-      }
-    }));
-
-    return contactsWithDetails;
-  } catch (error) {
-    console.error('Error in getAllContacts:', error);
-    throw error;
-  }
-};
-
-export { callBitrix24API };
