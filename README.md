@@ -55,9 +55,7 @@ cp .env.example .env
      - Redirect URI: [URL_NGROK]/auth/callback (ví dụ: https://your-ngrok-url.ngrok-free.app/auth/callback)
      - Scope: Chọn các quyền sau:
        - CRM (crm)
-       - CRM Contact (crm_contact)
-       - CRM Requisite (crm_requisite)
-       - CRM Address (crm_address)
+       - user
 
 3. Sau khi tạo, lấy Client ID và Client Secret
 
