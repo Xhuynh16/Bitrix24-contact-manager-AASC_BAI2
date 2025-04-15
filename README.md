@@ -14,7 +14,6 @@
   - Thông tin ngân hàng (Tên ngân hàng, Số tài khoản)
 - Chỉnh sửa thông tin liên hệ
 - Xóa liên hệ
-- Tìm kiếm liên hệ theo từ khóa
 
 ## Yêu cầu hệ thống
 
